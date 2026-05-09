@@ -3,6 +3,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from application.use_cases.create_vehicle import CreateVehicle
+from application.use_cases.get_vehicle import GetVehicle
+from application.use_cases.get_vehicle import NotFoundError as GetNotFoundError
 from application.use_cases.list_available_vehicles import ListAvailableVehicles
 from application.use_cases.update_vehicle import NotFoundError, UpdateVehicle
 from infrastructure.auth.oauth2 import get_current_user
@@ -48,6 +50,23 @@ async def list_vehicles(
     use_case = ListAvailableVehicles(repository)
     items, total = await use_case.execute(page=page, page_size=page_size)
     return VehicleListResponse(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/{vehicle_id}", status_code=status.HTTP_200_OK, response_model=VehicleResponse)
+async def get_vehicle(
+    vehicle_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    repository: VehicleRepositoryImpl = Depends(_get_repository),
+):
+    use_case = GetVehicle(repository)
+    try:
+        vehicle = await use_case.execute(vehicle_id)
+    except GetNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Veículo não encontrado.",
+        )
+    return vehicle
 
 
 @router.put("/{vehicle_id}", status_code=status.HTTP_200_OK, response_model=VehicleResponse)
