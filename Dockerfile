@@ -4,8 +4,9 @@ FROM python:3.11-slim AS builder
 WORKDIR /app
 
 COPY pyproject.toml .
+COPY src/ src/
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir ".[dev]" --target /app/packages
+    pip install --no-cache-dir "." --target /app/packages
 
 # ---- production stage ----
 FROM python:3.11-slim AS production
