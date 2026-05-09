@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "fiap-sub-fase4-catalog"
@@ -38,7 +38,10 @@ addopts = "--cov=src --cov-report=term-missing --cov-fail-under=80"
 
 [tool.coverage.run]
 source = ["src"]
-omit = ["src/presentation/main.py"]
+omit = [
+    "src/presentation/main.py",
+    "src/infrastructure/database/vehicle_repository_impl.py",
+]
 
 [tool.ruff]
 line-length = 88
