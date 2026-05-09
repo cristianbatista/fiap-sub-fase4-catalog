@@ -1,6 +1,12 @@
 from uuid import UUID
 
 from domain.entities.vehicle import Vehicle, VehicleStatus
+
+_TRANSITION_METHOD = {
+    VehicleStatus.reserved: lambda v: v.mark_as_reserved(),
+    VehicleStatus.sold: lambda v: v.mark_as_sold(),
+    VehicleStatus.available: lambda v: v.mark_as_available(),
+}
 from domain.repositories.vehicle_repository import VehicleRepository
 
 
@@ -21,10 +27,9 @@ class UpdateVehicleStatus:
         if vehicle is None:
             raise NotFoundError(f"Veículo {vehicle_id} não encontrado")
 
-        if vehicle.status == status:
-            raise ConflictError(
-                f"Veículo já está com status '{status.value}'. Transição inválida."
-            )
+        try:
+            _TRANSITION_METHOD[status](vehicle)
+        except ValueError as err:
+            raise ConflictError(str(err)) from err
 
-        updated = await self._repository.update_status(vehicle_id, status)
-        return updated
+        return await self._repository.update_status(vehicle_id, status)
