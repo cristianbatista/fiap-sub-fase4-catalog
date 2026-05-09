@@ -1,13 +1,13 @@
 from uuid import UUID
 
 from domain.entities.vehicle import Vehicle, VehicleStatus
+from domain.repositories.vehicle_repository import VehicleRepository
 
 _TRANSITION_METHOD = {
     VehicleStatus.reserved: lambda v: v.mark_as_reserved(),
     VehicleStatus.sold: lambda v: v.mark_as_sold(),
     VehicleStatus.available: lambda v: v.mark_as_available(),
 }
-from domain.repositories.vehicle_repository import VehicleRepository
 
 
 class NotFoundError(Exception):
