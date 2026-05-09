@@ -4,15 +4,16 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    tags:
+      - "v*"
 
 env:
   IMAGE_NAME: fiap-sub/catalog-service
   PYTHON_VERSION: "3.11"
 
 # ─────────────────────────────────────────────────────────────
-# PR VALIDATION JOBS (lint, test, sonar, build)
-# Rodam em todo PR para main e em push para main
+# JOBS DE PR: lint → test → build-image (validação rápida)
+# JOBS DE TAG: lint → test → sonar → publish-image → db-init → deploy
 # ─────────────────────────────────────────────────────────────
 
 jobs:
@@ -85,11 +86,41 @@ jobs:
           retention-days: 7
 
   # ─────────────────────────────────────────────────────────────
+  # Valida build da imagem em PRs (sem push)
+  # ─────────────────────────────────────────────────────────────
+
+  build-image:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (sem push — validação de PR)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: ${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─────────────────────────────────────────────────────────────
+  # Sonar: roda somente em push de tag
+  # Sobe container local, configura quality gate via API e falha
+  # se cobertura < 80% ou algum rating != A
+  # ─────────────────────────────────────────────────────────────
 
   sonar:
     name: SonarQube Analysis
     runs-on: ubuntu-latest
     needs: test
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
 
     services:
       sonarqube:
@@ -138,27 +169,23 @@ jobs:
           echo "SONAR_TOKEN=$TOKEN" >> "$GITHUB_ENV"
           echo "SONAR_ADMIN_PASS=$ADMIN_PASS" >> "$GITHUB_ENV"
 
-          # Criar quality gate personalizado
+          # Criar quality gate: cobertura >= 80%, ratings = A
           GATE_ID=$(curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create" \
             -d "name=CI-Gate" | jq -r '.id')
 
-          # Condição: cobertura geral >= 80%
           curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
             -d "gateId=$GATE_ID&metric=coverage&op=LT&error=80"
 
-          # Condição: rating de confiabilidade = A (sem bugs)
           curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
             -d "gateId=$GATE_ID&metric=reliability_rating&op=GT&error=1"
 
-          # Condição: rating de segurança = A (sem vulnerabilidades)
           curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
             -d "gateId=$GATE_ID&metric=security_rating&op=GT&error=1"
 
-          # Condição: rating de manutenibilidade = A (débito técnico < 5%)
           curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
             -d "gateId=$GATE_ID&metric=sqale_rating&op=GT&error=1"
 
-          # Associar quality gate ao projeto
+          # Associar gate ao projeto
           curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/select" \
             -d "gateId=$GATE_ID&projectKey=fiap-sub-fase4-catalog"
 
@@ -172,65 +199,38 @@ jobs:
         run: |
           SONAR_URL="http://localhost:9000"
 
-          # Aguardar processamento da análise (background task)
+          # Aguardar processamento da análise em background
           for i in $(seq 1 12); do
             STATUS=$(curl -sf -u "admin:$SONAR_ADMIN_PASS" \
               "$SONAR_URL/api/qualitygates/project_status?projectKey=fiap-sub-fase4-catalog" \
               | jq -r '.projectStatus.status')
-            if [ "$STATUS" != "NONE" ]; then
-              break
-            fi
+            [ "$STATUS" != "NONE" ] && break
             echo "Aguardando processamento... ($i/12)"
             sleep 5
           done
 
           echo "Quality Gate status: $STATUS"
 
-          # Exibir condições com falha
+          # Exibir condições reprovadas
           curl -sf -u "admin:$SONAR_ADMIN_PASS" \
             "$SONAR_URL/api/qualitygates/project_status?projectKey=fiap-sub-fase4-catalog" \
             | jq '.projectStatus.conditions[] | select(.status != "OK") | {metric: .metricKey, status: .status, actual: .actualValue, threshold: .errorThreshold}'
 
           if [ "$STATUS" != "OK" ]; then
-            echo "❌ Quality Gate REPROVADO — nota abaixo de A ou cobertura < 80%"
+            echo "Quality Gate REPROVADO — nota abaixo de A ou cobertura < 80%"
             exit 1
           fi
-          echo "✅ Quality Gate APROVADO"
+          echo "Quality Gate APROVADO"
 
   # ─────────────────────────────────────────────────────────────
-
-  build-image:
-    name: Build Docker Image
-    runs-on: ubuntu-latest
-    needs: [test, sonar]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build image (sem push — validação de PR)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: false
-          tags: ${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-# ─────────────────────────────────────────────────────────────
-# DEPLOY JOBS (somente em push para main após merge do PR)
-# ─────────────────────────────────────────────────────────────
+  # Publish, DB Init e Deploy: somente em push de tag, após sonar
+  # ─────────────────────────────────────────────────────────────
 
   publish-image:
     name: Publish Docker Image
     runs-on: ubuntu-latest
-    needs: build-image
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build-image.result == 'success'
-
-    outputs:
-      image_tag: ${{ steps.meta.outputs.version }}
+    needs: sonar
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
 
     steps:
       - uses: actions/checkout@v4
@@ -251,7 +251,8 @@ jobs:
         with:
           images: ${{ secrets.REGISTRY_URL }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,prefix=sha-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
 
       - name: Build and push image
@@ -270,10 +271,8 @@ jobs:
     name: DB Init — MongoDB Indexes
     runs-on: ubuntu-latest
     needs: publish-image
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
 
-    # O Beanie cria índices automaticamente no startup da aplicação.
-    # Este job valida a conectividade e força o init antes do deploy.
     env:
       MONGODB_URI: ${{ secrets.MONGODB_URI_PROD }}
       JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
@@ -312,7 +311,7 @@ jobs:
     name: Deploy to Kubernetes
     runs-on: ubuntu-latest
     needs: db-init
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
 
     steps:
       - uses: actions/checkout@v4
@@ -329,15 +328,13 @@ jobs:
           chmod 600 ~/.kube/config
 
       - name: Set image tag
-        run: |
-          echo "IMAGE_TAG=sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
+        run: echo "IMAGE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
 
       - name: Deploy to Kubernetes
         run: |
           kubectl set image deployment/catalog-service \
             catalog-service=${{ secrets.REGISTRY_URL }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
             --namespace=catalog
-          # --record foi removido: depreciado no kubectl >= 1.28
 
       - name: Wait for rollout
         run: |
