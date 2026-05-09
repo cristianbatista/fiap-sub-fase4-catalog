@@ -11,6 +11,7 @@ def _make_vehicle(
 ) -> Vehicle:
     v = Vehicle(brand="X", model="Y", year=2022, color="Z", price=price)
     if status == VehicleStatus.sold:
+        v.mark_as_reserved()
         v.mark_as_sold()
     return v
 

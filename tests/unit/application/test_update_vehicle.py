@@ -114,6 +114,7 @@ async def test_update_vehicle_preserves_status():
     from application.use_cases.update_vehicle import UpdateVehicle
 
     vehicle = _make_vehicle()
+    vehicle.mark_as_reserved()
     vehicle.mark_as_sold()
     repo = FakeVehicleRepository(initial=vehicle)
     use_case = UpdateVehicle(repo)

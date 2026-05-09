@@ -70,29 +70,50 @@ def test_vehicle_price_rounded_to_two_decimals():
     assert v.price == Decimal("101.00")
 
 
-def test_vehicle_mark_as_sold():
+def test_vehicle_mark_as_reserved():
     v = Vehicle(brand="X", model="Y", year=2020, color="Z", price=Decimal("1"))
+    v.mark_as_reserved()
+    assert v.status == VehicleStatus.reserved
+
+
+def test_vehicle_mark_as_sold_from_reserved():
+    v = Vehicle(brand="X", model="Y", year=2020, color="Z", price=Decimal("1"))
+    v.mark_as_reserved()
     v.mark_as_sold()
     assert v.status == VehicleStatus.sold
 
 
-def test_vehicle_mark_as_sold_twice_raises():
+def test_vehicle_mark_as_available_from_reserved():
     v = Vehicle(brand="X", model="Y", year=2020, color="Z", price=Decimal("1"))
-    v.mark_as_sold()
-    with pytest.raises(ValueError, match="vendido"):
-        v.mark_as_sold()
-
-
-def test_vehicle_mark_as_available_from_sold():
-    v = Vehicle(brand="X", model="Y", year=2020, color="Z", price=Decimal("1"))
-    v.mark_as_sold()
+    v.mark_as_reserved()
     v.mark_as_available()
     assert v.status == VehicleStatus.available
 
 
+def test_vehicle_mark_as_sold_directly_from_available_raises():
+    v = Vehicle(brand="X", model="Y", year=2020, color="Z", price=Decimal("1"))
+    with pytest.raises(ValueError, match="Transição inválida"):
+        v.mark_as_sold()
+
+
+def test_vehicle_mark_as_reserved_twice_raises():
+    v = Vehicle(brand="X", model="Y", year=2020, color="Z", price=Decimal("1"))
+    v.mark_as_reserved()
+    with pytest.raises(ValueError, match="Transição inválida"):
+        v.mark_as_reserved()
+
+
+def test_vehicle_mark_as_sold_twice_raises():
+    v = Vehicle(brand="X", model="Y", year=2020, color="Z", price=Decimal("1"))
+    v.mark_as_reserved()
+    v.mark_as_sold()
+    with pytest.raises(ValueError, match="Transição inválida"):
+        v.mark_as_sold()
+
+
 def test_vehicle_mark_as_available_when_already_available_raises():
     v = Vehicle(brand="X", model="Y", year=2020, color="Z", price=Decimal("1"))
-    with pytest.raises(ValueError, match="disponível"):
+    with pytest.raises(ValueError, match="Transição inválida"):
         v.mark_as_available()
 
 

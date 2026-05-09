@@ -21,7 +21,10 @@ def _make_vehicle(status: VehicleStatus = VehicleStatus.available) -> Vehicle:
         color="Branco",
         price=Decimal("85000.00"),
     )
-    if status == VehicleStatus.sold:
+    if status == VehicleStatus.reserved:
+        v.mark_as_reserved()
+    elif status == VehicleStatus.sold:
+        v.mark_as_reserved()
         v.mark_as_sold()
     return v
 
@@ -46,7 +49,24 @@ def mock_auth():
         yield
 
 
-def test_patch_status_available_to_sold_returns_200(client, auth_headers):
+def test_patch_status_available_to_reserved_returns_200(client, auth_headers):
+    vehicle = _make_vehicle(VehicleStatus.reserved)
+    with patch(
+        "application.use_cases.update_vehicle_status.UpdateVehicleStatus.execute",
+        new_callable=AsyncMock,
+        return_value=vehicle,
+    ):
+        response = client.patch(
+            f"/vehicles/{uuid4()}/status",
+            json={"status": "reserved"},
+            headers=auth_headers,
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "reserved"
+
+
+def test_patch_status_reserved_to_sold_returns_200(client, auth_headers):
     vehicle = _make_vehicle(VehicleStatus.sold)
     with patch(
         "application.use_cases.update_vehicle_status.UpdateVehicleStatus.execute",

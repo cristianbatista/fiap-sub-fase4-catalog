@@ -8,7 +8,15 @@ from pydantic import BaseModel, Field, field_validator
 
 class VehicleStatus(StrEnum):
     available = "available"
+    reserved = "reserved"
     sold = "sold"
+
+
+_ALLOWED_TRANSITIONS: dict[VehicleStatus, set[VehicleStatus]] = {
+    VehicleStatus.available: {VehicleStatus.reserved},
+    VehicleStatus.reserved: {VehicleStatus.sold, VehicleStatus.available},
+    VehicleStatus.sold: set(),
+}
 
 
 class Vehicle(BaseModel):
@@ -37,14 +45,18 @@ class Vehicle(BaseModel):
             raise ValueError("Preço deve ser maior que zero")
         return round(v, 2)
 
-    def mark_as_sold(self) -> None:
-        if self.status == VehicleStatus.sold:
-            raise ValueError("Veículo já está marcado como vendido")
-        self.status = VehicleStatus.sold
+    def _transition_to(self, target: VehicleStatus) -> None:
+        allowed = _ALLOWED_TRANSITIONS.get(self.status, set())
+        if target not in allowed:
+            raise ValueError(f"Transição inválida: '{self.status}' → '{target}'")
+        self.status = target
         self.updated_at = datetime.now(UTC)
 
+    def mark_as_reserved(self) -> None:
+        self._transition_to(VehicleStatus.reserved)
+
+    def mark_as_sold(self) -> None:
+        self._transition_to(VehicleStatus.sold)
+
     def mark_as_available(self) -> None:
-        if self.status == VehicleStatus.available:
-            raise ValueError("Veículo já está disponível")
-        self.status = VehicleStatus.available
-        self.updated_at = datetime.now(UTC)
+        self._transition_to(VehicleStatus.available)
