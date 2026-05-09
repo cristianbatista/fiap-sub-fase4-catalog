@@ -48,9 +48,7 @@ class Vehicle(BaseModel):
     def _transition_to(self, target: VehicleStatus) -> None:
         allowed = _ALLOWED_TRANSITIONS.get(self.status, set())
         if target not in allowed:
-            raise ValueError(
-                f"Transição inválida: '{self.status}' → '{target}'"
-            )
+            raise ValueError(f"Transição inválida: '{self.status}' → '{target}'")
         self.status = target
         self.updated_at = datetime.now(UTC)
 

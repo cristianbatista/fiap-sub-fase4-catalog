@@ -14,7 +14,13 @@ from domain.repositories.vehicle_repository import VehicleRepository
 
 
 def _make_vehicle(status: VehicleStatus = VehicleStatus.available) -> Vehicle:
-    v = Vehicle(brand="Toyota", model="Corolla", year=2023, color="Branco", price=Decimal("85000"))
+    v = Vehicle(
+        brand="Toyota",
+        model="Corolla",
+        year=2023,
+        color="Branco",
+        price=Decimal("85000"),
+    )
     if status == VehicleStatus.reserved:
         v.mark_as_reserved()
     elif status == VehicleStatus.sold:
@@ -30,7 +36,9 @@ async def test_update_status_available_to_reserved():
     mock_repo.find_by_id.return_value = vehicle
     mock_repo.update_status.return_value = _make_vehicle(VehicleStatus.reserved)
 
-    result = await UpdateVehicleStatus(mock_repo).execute(vehicle.id, VehicleStatus.reserved)
+    result = await UpdateVehicleStatus(mock_repo).execute(
+        vehicle.id, VehicleStatus.reserved
+    )
 
     assert result.status == VehicleStatus.reserved
     mock_repo.update_status.assert_called_once_with(vehicle.id, VehicleStatus.reserved)
@@ -43,7 +51,9 @@ async def test_update_status_reserved_to_sold():
     mock_repo.find_by_id.return_value = vehicle
     mock_repo.update_status.return_value = _make_vehicle(VehicleStatus.sold)
 
-    result = await UpdateVehicleStatus(mock_repo).execute(vehicle.id, VehicleStatus.sold)
+    result = await UpdateVehicleStatus(mock_repo).execute(
+        vehicle.id, VehicleStatus.sold
+    )
 
     assert result.status == VehicleStatus.sold
 
@@ -55,7 +65,9 @@ async def test_update_status_reserved_to_available():
     mock_repo.find_by_id.return_value = vehicle
     mock_repo.update_status.return_value = _make_vehicle(VehicleStatus.available)
 
-    result = await UpdateVehicleStatus(mock_repo).execute(vehicle.id, VehicleStatus.available)
+    result = await UpdateVehicleStatus(mock_repo).execute(
+        vehicle.id, VehicleStatus.available
+    )
 
     assert result.status == VehicleStatus.available
 

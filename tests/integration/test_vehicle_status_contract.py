@@ -14,7 +14,13 @@ os.environ.setdefault("JWT_ALGORITHM", "HS256")
 
 
 def _make_vehicle(status: VehicleStatus = VehicleStatus.available) -> Vehicle:
-    v = Vehicle(brand="Toyota", model="Corolla", year=2023, color="Branco", price=Decimal("85000.00"))
+    v = Vehicle(
+        brand="Toyota",
+        model="Corolla",
+        year=2023,
+        color="Branco",
+        price=Decimal("85000.00"),
+    )
     if status == VehicleStatus.reserved:
         v.mark_as_reserved()
     elif status == VehicleStatus.sold:
