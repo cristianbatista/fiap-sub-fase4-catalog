@@ -22,6 +22,7 @@ class VehicleDocument(Document):
         if isinstance(v, Decimal128):
             return Decimal(str(v))
         return v
+
     status: str = "available"
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
