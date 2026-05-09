@@ -75,7 +75,8 @@ jobs:
 
       - name: Run tests with coverage
         run: pytest --cov-report=xml:coverage.xml
-        working-directory: src
+        env:
+          PYTHONPATH: src
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -221,7 +222,8 @@ jobs:
 
           asyncio.run(main())
           EOF
-        working-directory: src
+        env:
+          PYTHONPATH: src
 
   # ─────────────────────────────────────────────────────────────
 
