@@ -70,7 +70,9 @@ async def create_vehicle(
 )
 async def list_vehicles(
     page: int = Query(default=1, ge=1, description="Página (1-indexed)"),
-    page_size: int = Query(default=20, ge=1, le=100, description="Itens por página (máximo 100)"),
+    page_size: int = Query(
+        default=20, ge=1, le=100, description="Itens por página (máximo 100)"
+    ),
     current_user: dict = Depends(get_current_user),
     repository: VehicleRepositoryImpl = Depends(_get_repository),
 ):

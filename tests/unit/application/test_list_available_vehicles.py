@@ -6,7 +6,9 @@ from domain.entities.vehicle import Vehicle, VehicleStatus
 from domain.repositories.vehicle_repository import VehicleRepository
 
 
-def _make_vehicle(price: Decimal, status: VehicleStatus = VehicleStatus.available) -> Vehicle:
+def _make_vehicle(
+    price: Decimal, status: VehicleStatus = VehicleStatus.available
+) -> Vehicle:
     v = Vehicle(brand="X", model="Y", year=2022, color="Z", price=price)
     if status == VehicleStatus.sold:
         v.mark_as_sold()
@@ -34,14 +36,16 @@ class FakeVehicleRepository(VehicleRepository):
             v.status = status
         return v
 
-    async def list_available(self, page: int, page_size: int) -> tuple[list[Vehicle], int]:
+    async def list_available(
+        self, page: int, page_size: int
+    ) -> tuple[list[Vehicle], int]:
         items = sorted(
             [v for v in self._store.values() if v.status == VehicleStatus.available],
             key=lambda v: v.price,
         )
         total = len(items)
         skip = (page - 1) * page_size
-        return items[skip: skip + page_size], total
+        return items[skip : skip + page_size], total
 
 
 @pytest.mark.asyncio

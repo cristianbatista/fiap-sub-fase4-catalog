@@ -38,13 +38,17 @@ class VehicleCreateRequest(BaseModel):
             raise ValueError("Preço deve ser maior que zero")
         return v
 
-    model_config = {"json_schema_extra": {"example": {
-        "brand": "Toyota",
-        "model": "Corolla",
-        "year": 2023,
-        "color": "Branco",
-        "price": "85000.00",
-    }}}
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "brand": "Toyota",
+                "model": "Corolla",
+                "year": 2023,
+                "color": "Branco",
+                "price": "85000.00",
+            }
+        }
+    }
 
 
 class VehicleUpdateRequest(VehicleCreateRequest):

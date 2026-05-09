@@ -24,7 +24,9 @@ async def test_get_current_user_invalid_token_raises_401():
     from infrastructure.auth.oauth2 import get_current_user
 
     with (
-        patch("infrastructure.auth.oauth2.jwt.decode", side_effect=JWTError("bad token")),
+        patch(
+            "infrastructure.auth.oauth2.jwt.decode", side_effect=JWTError("bad token")
+        ),
         pytest.raises(HTTPException) as exc,
     ):
         await get_current_user("bad-token")

@@ -27,6 +27,7 @@ def _mock_vehicle() -> Vehicle:
 def client():
     with patch("infrastructure.database.mongodb.init_db", new_callable=AsyncMock):
         from presentation.main import app
+
         with TestClient(app, raise_server_exceptions=False) as c:
             yield c
 
@@ -72,7 +73,13 @@ def test_post_vehicles_returns_201(client, auth_headers):
 def test_post_vehicles_without_token_returns_401(client):
     response = client.post(
         "/vehicles",
-        json={"brand": "Toyota", "model": "Corolla", "year": 2023, "color": "Branco", "price": "85000.00"},
+        json={
+            "brand": "Toyota",
+            "model": "Corolla",
+            "year": 2023,
+            "color": "Branco",
+            "price": "85000.00",
+        },
     )
     assert response.status_code == 401
 
@@ -89,7 +96,13 @@ def test_post_vehicles_missing_field_returns_422(client, auth_headers):
 def test_post_vehicles_negative_price_returns_422(client, auth_headers):
     response = client.post(
         "/vehicles",
-        json={"brand": "Toyota", "model": "Corolla", "year": 2023, "color": "Branco", "price": "-1"},
+        json={
+            "brand": "Toyota",
+            "model": "Corolla",
+            "year": 2023,
+            "color": "Branco",
+            "price": "-1",
+        },
         headers=auth_headers,
     )
     assert response.status_code == 422
@@ -98,7 +111,13 @@ def test_post_vehicles_negative_price_returns_422(client, auth_headers):
 def test_post_vehicles_invalid_year_returns_422(client, auth_headers):
     response = client.post(
         "/vehicles",
-        json={"brand": "Toyota", "model": "Corolla", "year": 1800, "color": "Branco", "price": "50000"},
+        json={
+            "brand": "Toyota",
+            "model": "Corolla",
+            "year": 1800,
+            "color": "Branco",
+            "price": "50000",
+        },
         headers=auth_headers,
     )
     assert response.status_code == 422

@@ -8,12 +8,24 @@ from domain.entities.vehicle import Vehicle, VehicleStatus
 
 
 def test_vehicle_created_with_status_available():
-    v = Vehicle(brand="Toyota", model="Corolla", year=2023, color="Branco", price=Decimal("85000"))
+    v = Vehicle(
+        brand="Toyota",
+        model="Corolla",
+        year=2023,
+        color="Branco",
+        price=Decimal("85000"),
+    )
     assert v.status == VehicleStatus.available
 
 
 def test_vehicle_id_auto_generated():
-    v = Vehicle(brand="Toyota", model="Corolla", year=2023, color="Branco", price=Decimal("85000"))
+    v = Vehicle(
+        brand="Toyota",
+        model="Corolla",
+        year=2023,
+        color="Branco",
+        price=Decimal("85000"),
+    )
     assert v.id is not None
 
 

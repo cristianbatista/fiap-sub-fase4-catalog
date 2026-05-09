@@ -9,7 +9,13 @@ from domain.repositories.vehicle_repository import VehicleRepository
 
 
 def _make_vehicle(status: VehicleStatus = VehicleStatus.available) -> Vehicle:
-    v = Vehicle(brand="Toyota", model="Corolla", year=2023, color="Branco", price=Decimal("85000"))
+    v = Vehicle(
+        brand="Toyota",
+        model="Corolla",
+        year=2023,
+        color="Branco",
+        price=Decimal("85000"),
+    )
     if status == VehicleStatus.sold:
         v.mark_as_sold()
     return v

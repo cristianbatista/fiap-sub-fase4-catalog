@@ -9,7 +9,13 @@ from domain.repositories.vehicle_repository import VehicleRepository
 
 
 def _make_vehicle(**kwargs) -> Vehicle:
-    defaults = dict(brand="Toyota", model="Corolla", year=2023, color="Branco", price=Decimal("85000"))
+    defaults = dict(
+        brand="Toyota",
+        model="Corolla",
+        year=2023,
+        color="Branco",
+        price=Decimal("85000"),
+    )
     return Vehicle(**{**defaults, **kwargs})
 
 

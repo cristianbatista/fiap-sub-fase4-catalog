@@ -13,6 +13,7 @@ os.environ.setdefault("JWT_ALGORITHM", "HS256")
 def client():
     with patch("infrastructure.database.mongodb.init_db", new_callable=AsyncMock):
         from presentation.main import app
+
         with TestClient(app, raise_server_exceptions=False) as c:
             yield c
 

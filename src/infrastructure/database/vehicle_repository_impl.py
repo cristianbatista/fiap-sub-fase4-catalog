@@ -22,17 +22,21 @@ class VehicleRepositoryImpl(VehicleRepository):
         if not doc:
             return vehicle
         vehicle.updated_at = datetime.now(UTC)
-        await doc.set({
-            "brand": vehicle.brand,
-            "model": vehicle.model,
-            "year": vehicle.year,
-            "color": vehicle.color,
-            "price": vehicle.price,
-            "updated_at": vehicle.updated_at,
-        })
+        await doc.set(
+            {
+                "brand": vehicle.brand,
+                "model": vehicle.model,
+                "year": vehicle.year,
+                "color": vehicle.color,
+                "price": vehicle.price,
+                "updated_at": vehicle.updated_at,
+            }
+        )
         return vehicle
 
-    async def update_status(self, vehicle_id: UUID, status: VehicleStatus) -> Vehicle | None:
+    async def update_status(
+        self, vehicle_id: UUID, status: VehicleStatus
+    ) -> Vehicle | None:
         doc = await VehicleDocument.find_one(VehicleDocument.id == vehicle_id)
         if not doc:
             return None
@@ -42,8 +46,12 @@ class VehicleRepositoryImpl(VehicleRepository):
         doc.updated_at = updated_at
         return _to_entity(doc)
 
-    async def list_available(self, page: int, page_size: int) -> tuple[list[Vehicle], int]:
-        query = VehicleDocument.find(VehicleDocument.status == VehicleStatus.available.value)
+    async def list_available(
+        self, page: int, page_size: int
+    ) -> tuple[list[Vehicle], int]:
+        query = VehicleDocument.find(
+            VehicleDocument.status == VehicleStatus.available.value
+        )
         total = await query.count()
         skip = (page - 1) * page_size
         docs = await query.sort("+price").skip(skip).limit(page_size).to_list()

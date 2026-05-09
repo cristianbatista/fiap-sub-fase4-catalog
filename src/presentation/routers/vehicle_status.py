@@ -54,7 +54,9 @@ async def update_vehicle_status(
 ):
     use_case = UpdateVehicleStatus(repository)
     try:
-        vehicle = await use_case.execute(vehicle_id, VehicleStatus(payload.status.value))
+        vehicle = await use_case.execute(
+            vehicle_id, VehicleStatus(payload.status.value)
+        )
     except NotFoundError as err:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -65,4 +67,6 @@ async def update_vehicle_status(
             status_code=status.HTTP_409_CONFLICT,
             detail="Conflito de status: transição inválida ou redundante.",
         ) from err
-    return StatusResponse(id=vehicle.id, status=vehicle.status.value, updated_at=vehicle.updated_at)
+    return StatusResponse(
+        id=vehicle.id, status=vehicle.status.value, updated_at=vehicle.updated_at
+    )

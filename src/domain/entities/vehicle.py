@@ -27,9 +27,7 @@ class Vehicle(BaseModel):
     def validate_year(cls, v: int) -> int:
         current_year = datetime.now(UTC).year
         if not (1886 <= v <= current_year + 1):
-            raise ValueError(
-                f"Ano deve estar entre 1886 e {current_year + 1}"
-            )
+            raise ValueError(f"Ano deve estar entre 1886 e {current_year + 1}")
         return v
 
     @field_validator("price")
