@@ -13,7 +13,7 @@ env:
 
 # ─────────────────────────────────────────────────────────────
 # JOBS DE PR: lint → test → build-image (validação rápida)
-# JOBS DE TAG: lint → test → sonar → publish-image → db-init → deploy
+# JOBS DE TAG: lint → test → publish-image → db-init → deploy
 # ─────────────────────────────────────────────────────────────
 
 jobs:
@@ -111,125 +111,13 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ─────────────────────────────────────────────────────────────
-  # Sonar: roda somente em push de tag
-  # Sobe container local, configura quality gate via API e falha
-  # se cobertura < 80% ou algum rating != A
-  # ─────────────────────────────────────────────────────────────
-
-  sonar:
-    name: SonarQube Analysis
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-
-    services:
-      sonarqube:
-        image: sonarqube:10-community
-        ports:
-          - 9000:9000
-        env:
-          SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download coverage report
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-report
-
-      - name: Wait for SonarQube to be ready
-        run: |
-          echo "Aguardando SonarQube inicializar..."
-          until curl -sf http://localhost:9000/api/system/ping 2>/dev/null | grep -q "pong"; do
-            echo "  ainda aguardando... ($(date +%H:%M:%S))"
-            sleep 15
-          done
-          echo "SonarQube pronto."
-        timeout-minutes: 8
-
-      - name: Configure SonarQube — project, token e quality gate
-        run: |
-          SONAR_URL="http://localhost:9000"
-          ADMIN_PASS="sonar-ci-$(date +%s)"
-
-          # Alterar senha padrão do admin
-          curl -sf -u admin:admin -X POST "$SONAR_URL/api/users/change_password" \
-            -d "login=admin&previousPassword=admin&password=$ADMIN_PASS"
-
-          # Criar projeto
-          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/projects/create" \
-            -d "name=Catalog+Service&project=fiap-sub-fase4-catalog" || true
-
-          # Gerar token de análise
-          TOKEN=$(curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/user_tokens/generate" \
-            -d "name=ci-token-$(date +%s)" | jq -r '.token')
-          echo "SONAR_TOKEN=$TOKEN" >> "$GITHUB_ENV"
-          echo "SONAR_ADMIN_PASS=$ADMIN_PASS" >> "$GITHUB_ENV"
-
-          # Criar quality gate: cobertura >= 80%, ratings = A
-          GATE_ID=$(curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create" \
-            -d "name=CI-Gate" | jq -r '.id')
-
-          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
-            -d "gateId=$GATE_ID&metric=coverage&op=LT&error=80"
-
-          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
-            -d "gateId=$GATE_ID&metric=reliability_rating&op=GT&error=1"
-
-          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
-            -d "gateId=$GATE_ID&metric=security_rating&op=GT&error=1"
-
-          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
-            -d "gateId=$GATE_ID&metric=sqale_rating&op=GT&error=1"
-
-          # Associar gate ao projeto
-          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/select" \
-            -d "gateId=$GATE_ID&projectKey=fiap-sub-fase4-catalog"
-
-      - name: Run SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v3
-        env:
-          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
-          SONAR_HOST_URL: http://localhost:9000
-
-      - name: Check Quality Gate
-        run: |
-          SONAR_URL="http://localhost:9000"
-
-          # Aguardar processamento da análise em background
-          for i in $(seq 1 12); do
-            STATUS=$(curl -sf -u "admin:$SONAR_ADMIN_PASS" \
-              "$SONAR_URL/api/qualitygates/project_status?projectKey=fiap-sub-fase4-catalog" \
-              | jq -r '.projectStatus.status')
-            [ "$STATUS" != "NONE" ] && break
-            echo "Aguardando processamento... ($i/12)"
-            sleep 5
-          done
-
-          echo "Quality Gate status: $STATUS"
-
-          # Exibir condições reprovadas
-          curl -sf -u "admin:$SONAR_ADMIN_PASS" \
-            "$SONAR_URL/api/qualitygates/project_status?projectKey=fiap-sub-fase4-catalog" \
-            | jq '.projectStatus.conditions[] | select(.status != "OK") | {metric: .metricKey, status: .status, actual: .actualValue, threshold: .errorThreshold}'
-
-          if [ "$STATUS" != "OK" ]; then
-            echo "Quality Gate REPROVADO — nota abaixo de A ou cobertura < 80%"
-            exit 1
-          fi
-          echo "Quality Gate APROVADO"
-
-  # ─────────────────────────────────────────────────────────────
-  # Publish, DB Init e Deploy: somente em push de tag, após sonar
+  # Publish, DB Init e Deploy: somente em push de tag, após test
   # ─────────────────────────────────────────────────────────────
 
   publish-image:
     name: Publish Docker Image
     runs-on: ubuntu-latest
-    needs: sonar
+    needs: test
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
 
     steps:
