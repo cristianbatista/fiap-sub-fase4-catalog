@@ -23,9 +23,13 @@ async def test_get_current_user_valid_token_returns_payload():
 async def test_get_current_user_invalid_token_raises_401():
     from infrastructure.auth.oauth2 import get_current_user
 
-    with patch("infrastructure.auth.oauth2.jwt.decode", side_effect=JWTError("bad token")):
-        with pytest.raises(HTTPException) as exc:
-            await get_current_user("bad-token")
+    with (
+        patch(
+            "infrastructure.auth.oauth2.jwt.decode", side_effect=JWTError("bad token")
+        ),
+        pytest.raises(HTTPException) as exc,
+    ):
+        await get_current_user("bad-token")
 
     assert exc.value.status_code == 401
     assert "inválidas" in exc.value.detail
@@ -35,8 +39,10 @@ async def test_get_current_user_invalid_token_raises_401():
 async def test_get_current_user_missing_sub_raises_401():
     from infrastructure.auth.oauth2 import get_current_user
 
-    with patch("infrastructure.auth.oauth2.jwt.decode", return_value={"data": "no-sub"}):
-        with pytest.raises(HTTPException) as exc:
-            await get_current_user("token-without-sub")
+    with (
+        patch("infrastructure.auth.oauth2.jwt.decode", return_value={"data": "no-sub"}),
+        pytest.raises(HTTPException) as exc,
+    ):
+        await get_current_user("token-without-sub")
 
     assert exc.value.status_code == 401

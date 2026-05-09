@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from domain.entities.vehicle import Vehicle, VehicleStatus
+from domain.entities.vehicle import Vehicle
 
 os.environ.setdefault("MONGODB_URI", "mongodb://localhost:27017/test")
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret")
@@ -14,13 +14,20 @@ os.environ.setdefault("JWT_ALGORITHM", "HS256")
 
 
 def _make_vehicle() -> Vehicle:
-    return Vehicle(brand="Toyota", model="Corolla", year=2023, color="Branco", price=Decimal("85000.00"))
+    return Vehicle(
+        brand="Toyota",
+        model="Corolla",
+        year=2023,
+        color="Branco",
+        price=Decimal("85000.00"),
+    )
 
 
 @pytest.fixture(scope="module")
 def client():
     with patch("infrastructure.database.mongodb.init_db", new_callable=AsyncMock):
         from presentation.main import app
+
         with TestClient(app, raise_server_exceptions=False) as c:
             yield c
 

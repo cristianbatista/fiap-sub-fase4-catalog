@@ -9,7 +9,13 @@ from domain.repositories.vehicle_repository import VehicleRepository
 
 
 def _make_vehicle(**kwargs) -> Vehicle:
-    defaults = dict(brand="Toyota", model="Corolla", year=2023, color="Branco", price=Decimal("85000"))
+    defaults = dict(
+        brand="Toyota",
+        model="Corolla",
+        year=2023,
+        color="Branco",
+        price=Decimal("85000"),
+    )
     return Vehicle(**{**defaults, **kwargs})
 
 
@@ -43,7 +49,7 @@ class FakeVehicleRepository(VehicleRepository):
 
 @pytest.mark.asyncio
 async def test_update_vehicle_success():
-    from application.use_cases.update_vehicle import NotFoundError, UpdateVehicle
+    from application.use_cases.update_vehicle import UpdateVehicle
 
     vehicle = _make_vehicle()
     repo = FakeVehicleRepository(initial=vehicle)

@@ -28,6 +28,7 @@ def _make_vehicle() -> Vehicle:
 def client():
     with patch("infrastructure.database.mongodb.init_db", new_callable=AsyncMock):
         from presentation.main import app
+
         with TestClient(app, raise_server_exceptions=False) as c:
             yield c
 
@@ -60,7 +61,9 @@ def test_put_vehicle_returns_200(client, auth_headers):
         new_callable=AsyncMock,
         return_value=updated,
     ):
-        response = client.put(f"/vehicles/{vehicle.id}", json=_valid_payload, headers=auth_headers)
+        response = client.put(
+            f"/vehicles/{vehicle.id}", json=_valid_payload, headers=auth_headers
+        )
 
     assert response.status_code == 200
     body = response.json()
@@ -76,7 +79,9 @@ def test_put_vehicle_not_found_returns_404(client, auth_headers):
         new_callable=AsyncMock,
         side_effect=NotFoundError("not found"),
     ):
-        response = client.put(f"/vehicles/{uuid4()}", json=_valid_payload, headers=auth_headers)
+        response = client.put(
+            f"/vehicles/{uuid4()}", json=_valid_payload, headers=auth_headers
+        )
 
     assert response.status_code == 404
     assert "não encontrado" in response.json()["detail"].lower()

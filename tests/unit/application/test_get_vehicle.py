@@ -4,17 +4,23 @@ from uuid import uuid4
 
 import pytest
 
-from domain.entities.vehicle import Vehicle, VehicleStatus
+from domain.entities.vehicle import Vehicle
 from domain.repositories.vehicle_repository import VehicleRepository
 
 
 def _make_vehicle() -> Vehicle:
-    return Vehicle(brand="Toyota", model="Corolla", year=2023, color="Branco", price=Decimal("85000"))
+    return Vehicle(
+        brand="Toyota",
+        model="Corolla",
+        year=2023,
+        color="Branco",
+        price=Decimal("85000"),
+    )
 
 
 @pytest.mark.asyncio
 async def test_get_vehicle_returns_vehicle():
-    from application.use_cases.get_vehicle import GetVehicle, NotFoundError
+    from application.use_cases.get_vehicle import GetVehicle
 
     vehicle = _make_vehicle()
     mock_repo = AsyncMock(spec=VehicleRepository)

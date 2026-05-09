@@ -70,7 +70,9 @@ async def create_vehicle(
 )
 async def list_vehicles(
     page: int = Query(default=1, ge=1, description="Página (1-indexed)"),
-    page_size: int = Query(default=20, ge=1, le=100, description="Itens por página (máximo 100)"),
+    page_size: int = Query(
+        default=20, ge=1, le=100, description="Itens por página (máximo 100)"
+    ),
     current_user: dict = Depends(get_current_user),
     repository: VehicleRepositoryImpl = Depends(_get_repository),
 ):
@@ -99,11 +101,11 @@ async def get_vehicle(
     use_case = GetVehicle(repository)
     try:
         vehicle = await use_case.execute(vehicle_id)
-    except GetNotFoundError:
+    except GetNotFoundError as err:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Veículo não encontrado.",
-        )
+        ) from err
     return vehicle
 
 
@@ -139,9 +141,9 @@ async def update_vehicle(
             color=payload.color,
             price=payload.price,
         )
-    except NotFoundError:
+    except NotFoundError as err:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Veículo não encontrado.",
-        )
+        ) from err
     return vehicle

@@ -29,7 +29,7 @@ async def validation_exception_handler(request: Request, exc: ValidationError):
     )
 
 
-from presentation.routers import health, vehicles, vehicle_status  # noqa: E402
+from presentation.routers import health, vehicle_status, vehicles  # noqa: E402
 
 app.include_router(health.router)
 app.include_router(vehicles.router, prefix="/vehicles", tags=["vehicles"])

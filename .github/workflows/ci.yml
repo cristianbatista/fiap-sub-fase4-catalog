@@ -1,0 +1,447 @@
+name: CI/CD — Catalog Service
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    tags:
+      - "v*"
+
+env:
+  IMAGE_NAME: fiap-sub/catalog-service
+  PYTHON_VERSION: "3.11"
+
+# ─────────────────────────────────────────────────────────────
+# JOBS DE PR: lint → test → build-image (validação rápida)
+# JOBS DE TAG: lint → test → sonar → publish-image → db-init → deploy
+# ─────────────────────────────────────────────────────────────
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run ruff
+        run: ruff check src/ tests/
+
+      - name: Run black (check mode)
+        run: black --check src/ tests/
+
+  # ─────────────────────────────────────────────────────────────
+
+  test:
+    name: Test & Coverage
+    runs-on: ubuntu-latest
+    needs: lint
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval \"db.adminCommand('ping')\""
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      MONGODB_URI: mongodb://localhost:27017/catalog_test
+      JWT_SECRET_KEY: ci-secret-key
+      JWT_ALGORITHM: HS256
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run tests with coverage
+        run: pytest --cov-report=xml:coverage.xml
+        env:
+          PYTHONPATH: src
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────
+  # Valida build da imagem em PRs (sem push)
+  # ─────────────────────────────────────────────────────────────
+
+  build-image:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (sem push — validação de PR)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: ${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─────────────────────────────────────────────────────────────
+  # Sonar: roda somente em push de tag
+  # Sobe container local, configura quality gate via API e falha
+  # se cobertura < 80% ou algum rating != A
+  # ─────────────────────────────────────────────────────────────
+
+  sonar:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+
+    services:
+      sonarqube:
+        image: sonarqube:10-community
+        ports:
+          - 9000:9000
+        env:
+          SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+
+      - name: Wait for SonarQube to be ready
+        run: |
+          echo "Aguardando SonarQube inicializar..."
+          until curl -sf http://localhost:9000/api/system/ping 2>/dev/null | grep -q "pong"; do
+            echo "  ainda aguardando... ($(date +%H:%M:%S))"
+            sleep 15
+          done
+          echo "SonarQube pronto."
+        timeout-minutes: 8
+
+      - name: Configure SonarQube — project, token e quality gate
+        run: |
+          SONAR_URL="http://localhost:9000"
+          ADMIN_PASS="sonar-ci-$(date +%s)"
+
+          # Alterar senha padrão do admin
+          curl -sf -u admin:admin -X POST "$SONAR_URL/api/users/change_password" \
+            -d "login=admin&previousPassword=admin&password=$ADMIN_PASS"
+
+          # Criar projeto
+          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/projects/create" \
+            -d "name=Catalog+Service&project=fiap-sub-fase4-catalog" || true
+
+          # Gerar token de análise
+          TOKEN=$(curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/user_tokens/generate" \
+            -d "name=ci-token-$(date +%s)" | jq -r '.token')
+          echo "SONAR_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          echo "SONAR_ADMIN_PASS=$ADMIN_PASS" >> "$GITHUB_ENV"
+
+          # Criar quality gate: cobertura >= 80%, ratings = A
+          GATE_ID=$(curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create" \
+            -d "name=CI-Gate" | jq -r '.id')
+
+          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
+            -d "gateId=$GATE_ID&metric=coverage&op=LT&error=80"
+
+          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
+            -d "gateId=$GATE_ID&metric=reliability_rating&op=GT&error=1"
+
+          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
+            -d "gateId=$GATE_ID&metric=security_rating&op=GT&error=1"
+
+          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
+            -d "gateId=$GATE_ID&metric=sqale_rating&op=GT&error=1"
+
+          # Associar gate ao projeto
+          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/select" \
+            -d "gateId=$GATE_ID&projectKey=fiap-sub-fase4-catalog"
+
+      - name: Run SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v3
+        env:
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+          SONAR_HOST_URL: http://localhost:9000
+
+      - name: Check Quality Gate
+        run: |
+          SONAR_URL="http://localhost:9000"
+
+          # Aguardar processamento da análise em background
+          for i in $(seq 1 12); do
+            STATUS=$(curl -sf -u "admin:$SONAR_ADMIN_PASS" \
+              "$SONAR_URL/api/qualitygates/project_status?projectKey=fiap-sub-fase4-catalog" \
+              | jq -r '.projectStatus.status')
+            [ "$STATUS" != "NONE" ] && break
+            echo "Aguardando processamento... ($i/12)"
+            sleep 5
+          done
+
+          echo "Quality Gate status: $STATUS"
+
+          # Exibir condições reprovadas
+          curl -sf -u "admin:$SONAR_ADMIN_PASS" \
+            "$SONAR_URL/api/qualitygates/project_status?projectKey=fiap-sub-fase4-catalog" \
+            | jq '.projectStatus.conditions[] | select(.status != "OK") | {metric: .metricKey, status: .status, actual: .actualValue, threshold: .errorThreshold}'
+
+          if [ "$STATUS" != "OK" ]; then
+            echo "Quality Gate REPROVADO — nota abaixo de A ou cobertura < 80%"
+            exit 1
+          fi
+          echo "Quality Gate APROVADO"
+
+  # ─────────────────────────────────────────────────────────────
+  # Publish, DB Init e Deploy: somente em push de tag, após sonar
+  # ─────────────────────────────────────────────────────────────
+
+  publish-image:
+    name: Publish Docker Image
+    runs-on: ubuntu-latest
+    needs: sonar
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.REGISTRY_URL }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─────────────────────────────────────────────────────────────
+
+  db-init:
+    name: DB Init — MongoDB Indexes (prod)
+    runs-on: ubuntu-latest
+    needs: publish-image
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # Roda apenas quando MONGODB_URI_PROD estiver configurado
+    continue-on-error: true
+
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI_PROD }}
+      JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+      JWT_ALGORITHM: HS256
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Validate MongoDB connectivity and init indexes
+        run: |
+          python - <<'EOF'
+          import asyncio
+          from infrastructure.database.mongodb import init_db
+
+          async def main():
+              await init_db()
+              print("MongoDB connected and indexes initialized successfully.")
+
+          asyncio.run(main())
+          EOF
+        env:
+          PYTHONPATH: src
+
+  # ─────────────────────────────────────────────────────────────
+
+  deploy:
+    name: Deploy — Kubernetes (kind)
+    runs-on: ubuntu-latest
+    needs: publish-image
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image tag
+        run: echo "IMAGE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+
+      - name: Set up kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: catalog-ci
+          wait: 120s
+
+      - name: Build and load image into kind
+        run: |
+          docker build -t ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} .
+          kind load docker-image ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} --name catalog-ci
+
+      - name: Deploy MongoDB
+        run: |
+          kubectl create namespace catalog
+          kubectl apply -n catalog -f - <<'EOF'
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: mongodb
+          spec:
+            selector:
+              matchLabels:
+                app: mongodb
+            template:
+              metadata:
+                labels:
+                  app: mongodb
+              spec:
+                containers:
+                  - name: mongodb
+                    image: mongo:7.0
+                    ports:
+                      - containerPort: 27017
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: mongodb
+          spec:
+            selector:
+              app: mongodb
+            ports:
+              - port: 27017
+                targetPort: 27017
+          EOF
+
+      - name: Deploy Catalog Service
+        run: |
+          kubectl create secret generic catalog-secrets -n catalog \
+            --from-literal=JWT_SECRET_KEY=kind-ci-secret \
+            --from-literal=JWT_ALGORITHM=HS256
+
+          kubectl apply -n catalog -f - <<EOF
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: catalog-service
+          spec:
+            selector:
+              matchLabels:
+                app: catalog-service
+            template:
+              metadata:
+                labels:
+                  app: catalog-service
+              spec:
+                containers:
+                  - name: catalog-service
+                    image: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+                    imagePullPolicy: Never
+                    ports:
+                      - containerPort: 8000
+                    env:
+                      - name: MONGODB_URI
+                        value: "mongodb://mongodb:27017/catalog"
+                      - name: JWT_SECRET_KEY
+                        valueFrom:
+                          secretKeyRef:
+                            name: catalog-secrets
+                            key: JWT_SECRET_KEY
+                      - name: JWT_ALGORITHM
+                        valueFrom:
+                          secretKeyRef:
+                            name: catalog-secrets
+                            key: JWT_ALGORITHM
+                    readinessProbe:
+                      httpGet:
+                        path: /health
+                        port: 8000
+                      initialDelaySeconds: 10
+                      periodSeconds: 5
+                      failureThreshold: 6
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: catalog-service
+          spec:
+            selector:
+              app: catalog-service
+            ports:
+              - port: 8000
+                targetPort: 8000
+          EOF
+
+      - name: Wait for MongoDB rollout
+        run: kubectl rollout status deployment/mongodb -n catalog --timeout=120s
+
+      - name: Wait for Catalog Service rollout
+        run: kubectl rollout status deployment/catalog-service -n catalog --timeout=120s
+
+      - name: Health check via port-forward
+        run: |
+          kubectl port-forward svc/catalog-service 8000:8000 -n catalog &
+          sleep 3
+          curl --fail --retry 5 --retry-delay 3 http://localhost:8000/health
+
+      - name: Show pod logs on failure
+        if: failure()
+        run: |
+          echo "=== catalog-service logs ==="
+          kubectl logs -l app=catalog-service -n catalog --tail=50 || true
+          echo "=== mongodb logs ==="
+          kubectl logs -l app=mongodb -n catalog --tail=20 || true

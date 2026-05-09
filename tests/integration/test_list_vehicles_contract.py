@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from domain.entities.vehicle import Vehicle, VehicleStatus
+from domain.entities.vehicle import Vehicle
 
 os.environ.setdefault("MONGODB_URI", "mongodb://localhost:27017/test")
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret")
@@ -13,13 +13,16 @@ os.environ.setdefault("JWT_ALGORITHM", "HS256")
 
 
 def _make_vehicle(price: str) -> Vehicle:
-    return Vehicle(brand="Toyota", model="Corolla", year=2023, color="Branco", price=Decimal(price))
+    return Vehicle(
+        brand="Toyota", model="Corolla", year=2023, color="Branco", price=Decimal(price)
+    )
 
 
 @pytest.fixture(scope="module")
 def client():
     with patch("infrastructure.database.mongodb.init_db", new_callable=AsyncMock):
         from presentation.main import app
+
         with TestClient(app, raise_server_exceptions=False) as c:
             yield c
 
@@ -92,7 +95,7 @@ def test_get_vehicles_page_size_max_capped(client, auth_headers):
         "application.use_cases.list_available_vehicles.ListAvailableVehicles.execute",
         new_callable=AsyncMock,
         return_value=([], 0),
-    ) as mock_exec:
+    ):
         response = client.get("/vehicles?page_size=200", headers=auth_headers)
 
     assert response.status_code == 422
