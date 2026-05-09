@@ -90,40 +90,115 @@ jobs:
     name: SonarQube Analysis
     runs-on: ubuntu-latest
     needs: test
-    # continue-on-error: secrets não disponíveis bloqueiam o sonar mas não o pipeline
-    continue-on-error: true
+
+    services:
+      sonarqube:
+        image: sonarqube:10-community
+        ports:
+          - 9000:9000
+        env:
+          SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+        options: >-
+          --health-cmd "curl -sf http://localhost:9000/api/system/ping"
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 12
+          --health-start-period 90s
 
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # necessário para blame e histórico de branches
+          fetch-depth: 0
 
       - name: Download coverage report
         uses: actions/download-artifact@v4
         with:
           name: coverage-report
 
-      - name: SonarQube Scan
+      - name: Configure SonarQube — project, token e quality gate
+        run: |
+          SONAR_URL="http://localhost:9000"
+          ADMIN_PASS="sonar-ci-$(date +%s)"
+
+          # Alterar senha padrão do admin
+          curl -sf -u admin:admin -X POST "$SONAR_URL/api/users/change_password" \
+            -d "login=admin&previousPassword=admin&password=$ADMIN_PASS"
+
+          # Criar projeto
+          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/projects/create" \
+            -d "name=Catalog+Service&project=fiap-sub-fase4-catalog" || true
+
+          # Gerar token de análise
+          TOKEN=$(curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/user_tokens/generate" \
+            -d "name=ci-token-$(date +%s)" | jq -r '.token')
+          echo "SONAR_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          echo "SONAR_ADMIN_PASS=$ADMIN_PASS" >> "$GITHUB_ENV"
+
+          # Criar quality gate personalizado
+          GATE_ID=$(curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create" \
+            -d "name=CI-Gate" | jq -r '.id')
+
+          # Condição: cobertura geral >= 80%
+          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
+            -d "gateId=$GATE_ID&metric=coverage&op=LT&error=80"
+
+          # Condição: rating de confiabilidade = A (sem bugs)
+          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
+            -d "gateId=$GATE_ID&metric=reliability_rating&op=GT&error=1"
+
+          # Condição: rating de segurança = A (sem vulnerabilidades)
+          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
+            -d "gateId=$GATE_ID&metric=security_rating&op=GT&error=1"
+
+          # Condição: rating de manutenibilidade = A (débito técnico < 5%)
+          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/create_condition" \
+            -d "gateId=$GATE_ID&metric=sqale_rating&op=GT&error=1"
+
+          # Associar quality gate ao projeto
+          curl -sf -u "admin:$ADMIN_PASS" -X POST "$SONAR_URL/api/qualitygates/select" \
+            -d "gateId=$GATE_ID&projectKey=fiap-sub-fase4-catalog"
+
+      - name: Run SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v3
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+          SONAR_HOST_URL: http://localhost:9000
 
-      - name: SonarQube Quality Gate check
-        uses: SonarSource/sonarqube-quality-gate-action@v1
-        timeout-minutes: 5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      - name: Check Quality Gate
+        run: |
+          SONAR_URL="http://localhost:9000"
+
+          # Aguardar processamento da análise (background task)
+          for i in $(seq 1 12); do
+            STATUS=$(curl -sf -u "admin:$SONAR_ADMIN_PASS" \
+              "$SONAR_URL/api/qualitygates/project_status?projectKey=fiap-sub-fase4-catalog" \
+              | jq -r '.projectStatus.status')
+            if [ "$STATUS" != "NONE" ]; then
+              break
+            fi
+            echo "Aguardando processamento... ($i/12)"
+            sleep 5
+          done
+
+          echo "Quality Gate status: $STATUS"
+
+          # Exibir condições com falha
+          curl -sf -u "admin:$SONAR_ADMIN_PASS" \
+            "$SONAR_URL/api/qualitygates/project_status?projectKey=fiap-sub-fase4-catalog" \
+            | jq '.projectStatus.conditions[] | select(.status != "OK") | {metric: .metricKey, status: .status, actual: .actualValue, threshold: .errorThreshold}'
+
+          if [ "$STATUS" != "OK" ]; then
+            echo "❌ Quality Gate REPROVADO — nota abaixo de A ou cobertura < 80%"
+            exit 1
+          fi
+          echo "✅ Quality Gate APROVADO"
 
   # ─────────────────────────────────────────────────────────────
 
   build-image:
     name: Build Docker Image
     runs-on: ubuntu-latest
-    # Depende de test (obrigatório) e sonar (opcional — não bloqueia)
     needs: [test, sonar]
-    if: always() && needs.test.result == 'success'
 
     steps:
       - uses: actions/checkout@v4
