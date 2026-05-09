@@ -246,13 +246,17 @@ Consulte [docs/c4-component.md](docs/c4-component.md) para o diagrama de compone
 
 ## Pre-commit Hooks
 
-O repositório usa `pre-commit` para validação de mensagens de commit (Conventional Commits):
+O repositório usa `pre-commit` para validar formatação (black, ruff) e mensagens de commit (Conventional Commits) antes de cada `git commit`.
+
+**Instalação** (necessário apenas uma vez por clone):
 
 ```bash
-pre-commit install
+pip install pre-commit
+pre-commit install                        # hooks de pre-commit (lint/format)
+pre-commit install --hook-type commit-msg # hook de commit-msg (conventional commits)
 ```
 
-Formato esperado: `type(scope): descrição` — ex: `feat(vehicles): add pagination support`
+Formato esperado para mensagens: `type(scope): descrição` — ex: `feat(vehicles): add pagination support`
 
 ---
 
