@@ -1,12 +1,12 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator
 
 
-class VehicleStatus(str, Enum):
+class VehicleStatus(StrEnum):
     available = "available"
     sold = "sold"
 
@@ -19,13 +19,13 @@ class Vehicle(BaseModel):
     color: str = Field(min_length=1, max_length=50)
     price: Decimal
     status: VehicleStatus = VehicleStatus.available
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @field_validator("year")
     @classmethod
     def validate_year(cls, v: int) -> int:
-        current_year = datetime.now(timezone.utc).year
+        current_year = datetime.now(UTC).year
         if not (1886 <= v <= current_year + 1):
             raise ValueError(
                 f"Ano deve estar entre 1886 e {current_year + 1}"
@@ -43,10 +43,10 @@ class Vehicle(BaseModel):
         if self.status == VehicleStatus.sold:
             raise ValueError("Veículo já está marcado como vendido")
         self.status = VehicleStatus.sold
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)
 
     def mark_as_available(self) -> None:
         if self.status == VehicleStatus.available:
             raise ValueError("Veículo já está disponível")
         self.status = VehicleStatus.available
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)

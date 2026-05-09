@@ -17,7 +17,9 @@ def _make_vehicle(status: VehicleStatus = VehicleStatus.available) -> Vehicle:
 
 @pytest.mark.asyncio
 async def test_update_status_available_to_sold():
-    from application.use_cases.update_vehicle_status import ConflictError, UpdateVehicleStatus
+    from application.use_cases.update_vehicle_status import (
+        UpdateVehicleStatus,
+    )
 
     vehicle = _make_vehicle(VehicleStatus.available)
     mock_repo = AsyncMock(spec=VehicleRepository)
@@ -50,7 +52,10 @@ async def test_update_status_sold_to_available():
 
 @pytest.mark.asyncio
 async def test_update_status_sold_to_sold_raises_conflict():
-    from application.use_cases.update_vehicle_status import ConflictError, UpdateVehicleStatus
+    from application.use_cases.update_vehicle_status import (
+        ConflictError,
+        UpdateVehicleStatus,
+    )
 
     vehicle = _make_vehicle(VehicleStatus.sold)
     mock_repo = AsyncMock(spec=VehicleRepository)
@@ -63,7 +68,10 @@ async def test_update_status_sold_to_sold_raises_conflict():
 
 @pytest.mark.asyncio
 async def test_update_status_available_to_available_raises_conflict():
-    from application.use_cases.update_vehicle_status import ConflictError, UpdateVehicleStatus
+    from application.use_cases.update_vehicle_status import (
+        ConflictError,
+        UpdateVehicleStatus,
+    )
 
     vehicle = _make_vehicle(VehicleStatus.available)
     mock_repo = AsyncMock(spec=VehicleRepository)
@@ -76,7 +84,10 @@ async def test_update_status_available_to_available_raises_conflict():
 
 @pytest.mark.asyncio
 async def test_update_status_not_found_raises():
-    from application.use_cases.update_vehicle_status import NotFoundError, UpdateVehicleStatus
+    from application.use_cases.update_vehicle_status import (
+        NotFoundError,
+        UpdateVehicleStatus,
+    )
 
     mock_repo = AsyncMock(spec=VehicleRepository)
     mock_repo.find_by_id.return_value = None

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -21,7 +21,7 @@ class VehicleRepositoryImpl(VehicleRepository):
         doc = await VehicleDocument.find_one(VehicleDocument.id == vehicle.id)
         if not doc:
             return vehicle
-        vehicle.updated_at = datetime.now(timezone.utc)
+        vehicle.updated_at = datetime.now(UTC)
         await doc.set({
             "brand": vehicle.brand,
             "model": vehicle.model,
@@ -36,7 +36,7 @@ class VehicleRepositoryImpl(VehicleRepository):
         doc = await VehicleDocument.find_one(VehicleDocument.id == vehicle_id)
         if not doc:
             return None
-        updated_at = datetime.now(timezone.utc)
+        updated_at = datetime.now(UTC)
         await doc.set({"status": status.value, "updated_at": updated_at})
         doc.status = status.value
         doc.updated_at = updated_at

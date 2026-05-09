@@ -4,7 +4,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from application.use_cases.update_vehicle_status import ConflictError, NotFoundError, UpdateVehicleStatus
+from application.use_cases.update_vehicle_status import (
+    ConflictError,
+    NotFoundError,
+    UpdateVehicleStatus,
+)
 from domain.entities.vehicle import VehicleStatus
 from infrastructure.auth.oauth2 import get_current_user
 from infrastructure.database.vehicle_repository_impl import VehicleRepositoryImpl
@@ -51,14 +55,14 @@ async def update_vehicle_status(
     use_case = UpdateVehicleStatus(repository)
     try:
         vehicle = await use_case.execute(vehicle_id, VehicleStatus(payload.status.value))
-    except NotFoundError:
+    except NotFoundError as err:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Veículo não encontrado.",
-        )
-    except ConflictError:
+        ) from err
+    except ConflictError as err:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Conflito de status: transição inválida ou redundante.",
-        )
+        ) from err
     return StatusResponse(id=vehicle.id, status=vehicle.status.value, updated_at=vehicle.updated_at)

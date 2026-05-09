@@ -17,8 +17,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
         if sub is None:
             raise _credentials_exception()
         return {"sub": sub}
-    except JWTError:
-        raise _credentials_exception()
+    except JWTError as err:
+        raise _credentials_exception() from err
 
 
 def _credentials_exception() -> HTTPException:

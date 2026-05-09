@@ -1,9 +1,9 @@
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel
 
 
-class StatusValue(str, Enum):
+class StatusValue(StrEnum):
     available = "available"
     sold = "sold"
 

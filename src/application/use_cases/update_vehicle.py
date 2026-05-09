@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -32,6 +32,6 @@ class UpdateVehicle:
         vehicle.year = year
         vehicle.color = color
         vehicle.price = round(price, 2)
-        vehicle.updated_at = datetime.now(timezone.utc)
+        vehicle.updated_at = datetime.now(UTC)
 
         return await self._repository.update(vehicle)

@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from beanie import Document, Indexed
+from beanie import Document
 from pydantic import Field
 from pymongo import ASCENDING, IndexModel
 
@@ -15,8 +15,8 @@ class VehicleDocument(Document):
     color: str
     price: Decimal
     status: str = "available"
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     class Settings:
         name = "vehicles"

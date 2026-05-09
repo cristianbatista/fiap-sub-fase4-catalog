@@ -99,11 +99,11 @@ async def get_vehicle(
     use_case = GetVehicle(repository)
     try:
         vehicle = await use_case.execute(vehicle_id)
-    except GetNotFoundError:
+    except GetNotFoundError as err:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Veículo não encontrado.",
-        )
+        ) from err
     return vehicle
 
 
@@ -139,9 +139,9 @@ async def update_vehicle(
             color=payload.color,
             price=payload.price,
         )
-    except NotFoundError:
+    except NotFoundError as err:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Veículo não encontrado.",
-        )
+        ) from err
     return vehicle

@@ -43,7 +43,7 @@ class FakeVehicleRepository(VehicleRepository):
 
 @pytest.mark.asyncio
 async def test_update_vehicle_success():
-    from application.use_cases.update_vehicle import NotFoundError, UpdateVehicle
+    from application.use_cases.update_vehicle import UpdateVehicle
 
     vehicle = _make_vehicle()
     repo = FakeVehicleRepository(initial=vehicle)

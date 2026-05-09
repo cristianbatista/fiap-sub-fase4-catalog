@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -23,7 +23,7 @@ def test_vehicle_year_minimum_valid():
 
 
 def test_vehicle_year_current_plus_one_valid():
-    current = datetime.now(timezone.utc).year
+    current = datetime.now(UTC).year
     v = Vehicle(brand="X", model="Y", year=current + 1, color="Z", price=Decimal("1"))
     assert v.year == current + 1
 
@@ -35,7 +35,7 @@ def test_vehicle_year_below_minimum_raises():
 
 
 def test_vehicle_year_above_maximum_raises():
-    current = datetime.now(timezone.utc).year
+    current = datetime.now(UTC).year
     with pytest.raises(ValidationError) as exc:
         Vehicle(brand="X", model="Y", year=current + 2, color="Z", price=Decimal("1"))
     assert "Ano" in str(exc.value)

@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from domain.entities.vehicle import Vehicle, VehicleStatus
+from domain.entities.vehicle import Vehicle
 
 os.environ.setdefault("MONGODB_URI", "mongodb://localhost:27017/test")
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret")
