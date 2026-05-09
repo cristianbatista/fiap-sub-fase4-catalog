@@ -47,31 +47,8 @@ class VehicleCreateRequest(BaseModel):
     }}}
 
 
-class VehicleUpdateRequest(BaseModel):
-    brand: str | None = Field(default=None, min_length=1, max_length=100)
-    model: str | None = Field(default=None, min_length=1, max_length=100)
-    year: int | None = None
-    color: str | None = Field(default=None, min_length=1, max_length=50)
-    price: Decimal | None = None
-
-    @field_validator("year")
-    @classmethod
-    def validate_year(cls, v: int | None) -> int | None:
-        if v is None:
-            return v
-        current = _current_year()
-        if not (1886 <= v <= current + 1):
-            raise ValueError(f"Ano deve estar entre 1886 e {current + 1}")
-        return v
-
-    @field_validator("price")
-    @classmethod
-    def validate_price(cls, v: Decimal | None) -> Decimal | None:
-        if v is None:
-            return v
-        if v <= 0:
-            raise ValueError("Preço deve ser maior que zero")
-        return v
+class VehicleUpdateRequest(VehicleCreateRequest):
+    """PUT /vehicles/{id} — all fields required, same validation as create."""
 
 
 class VehicleResponse(BaseModel):
