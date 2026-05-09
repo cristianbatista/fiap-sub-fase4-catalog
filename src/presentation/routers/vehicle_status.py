@@ -23,7 +23,25 @@ def _get_repository() -> VehicleRepositoryImpl:
     return VehicleRepositoryImpl()
 
 
-@router.patch("/{vehicle_id}/status", status_code=status.HTTP_200_OK, response_model=StatusResponse)
+@router.patch(
+    "/{vehicle_id}/status",
+    status_code=status.HTTP_200_OK,
+    response_model=StatusResponse,
+    summary="Atualizar status do veículo",
+    description=(
+        "Atualiza o status do ciclo de vida de um veículo. "
+        "Utilizado exclusivamente pelo **Sales Service** para marcar veículos como **sold** "
+        "(na iniciação de uma venda) ou restaurar para **available** (no cancelamento do pagamento). "
+        "Transições redundantes (ex: sold → sold) retornam HTTP 409."
+    ),
+    responses={
+        200: {"description": "Status atualizado com sucesso"},
+        401: {"description": "Token ausente ou inválido"},
+        404: {"description": "Veículo não encontrado"},
+        409: {"description": "Conflito — transição de status inválida ou redundante"},
+        422: {"description": "Valor de status inválido"},
+    },
+)
 async def update_vehicle_status(
     vehicle_id: UUID,
     payload: StatusUpdateRequest,
