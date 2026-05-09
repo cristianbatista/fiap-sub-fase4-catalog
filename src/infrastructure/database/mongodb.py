@@ -14,5 +14,7 @@ async def init_db() -> None:
 
 
 def _extract_db_name(uri: str) -> str:
+    if "/" not in uri.split("//", 1)[-1]:
+        return "catalog"
     path = uri.split("/")[-1].split("?")[0]
     return path if path else "catalog"
