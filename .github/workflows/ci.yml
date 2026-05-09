@@ -112,11 +112,12 @@ jobs:
       - name: Wait for SonarQube to be ready
         run: |
           echo "Aguardando SonarQube inicializar..."
-          until curl -sf http://localhost:9000/api/system/ping | grep -q "pong"; do
-            sleep 10
+          until curl -sf http://localhost:9000/api/system/ping 2>/dev/null | grep -q "pong"; do
+            echo "  ainda aguardando... ($(date +%H:%M:%S))"
+            sleep 15
           done
           echo "SonarQube pronto."
-        timeout-minutes: 5
+        timeout-minutes: 8
 
       - name: Configure SonarQube — project, token e quality gate
         run: |
