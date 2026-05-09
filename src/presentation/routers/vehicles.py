@@ -1,12 +1,18 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from application.use_cases.create_vehicle import CreateVehicle
+from application.use_cases.list_available_vehicles import ListAvailableVehicles
 from application.use_cases.update_vehicle import NotFoundError, UpdateVehicle
 from infrastructure.auth.oauth2 import get_current_user
 from infrastructure.database.vehicle_repository_impl import VehicleRepositoryImpl
-from presentation.schemas.vehicle_schemas import VehicleCreateRequest, VehicleResponse, VehicleUpdateRequest
+from presentation.schemas.vehicle_schemas import (
+    VehicleCreateRequest,
+    VehicleListResponse,
+    VehicleResponse,
+    VehicleUpdateRequest,
+)
 
 router = APIRouter()
 
@@ -30,6 +36,18 @@ async def create_vehicle(
         price=payload.price,
     )
     return vehicle
+
+
+@router.get("", status_code=status.HTTP_200_OK, response_model=VehicleListResponse)
+async def list_vehicles(
+    page: int = Query(default=1, ge=1, description="Página (1-indexed)"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Itens por página (máximo 100)"),
+    current_user: dict = Depends(get_current_user),
+    repository: VehicleRepositoryImpl = Depends(_get_repository),
+):
+    use_case = ListAvailableVehicles(repository)
+    items, total = await use_case.execute(page=page, page_size=page_size)
+    return VehicleListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.put("/{vehicle_id}", status_code=status.HTTP_200_OK, response_model=VehicleResponse)
