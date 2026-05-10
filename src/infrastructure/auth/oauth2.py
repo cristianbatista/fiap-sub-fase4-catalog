@@ -19,7 +19,7 @@ def create_access_token(subject: str) -> str:
     return jwt.encode(payload, secret_key, algorithm=algorithm)
 
 
-def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     secret_key = os.environ["JWT_SECRET_KEY"]
     algorithm = os.environ.get("JWT_ALGORITHM", "HS256")
 
